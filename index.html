@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>東南西北方向大探險</title>
+    <title>東南西北方向大探險（示範版）</title>
     <style>
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "PingFang HK", "Microsoft JhengHei", sans-serif; 
@@ -13,8 +13,10 @@
             padding: 10px; 
             user-select: none; 
             -webkit-user-select: none; 
-            touch-action: none;
+            touch-action: pan-y;
             overflow-x: hidden;
+            position: relative;
+            min-height: 96vh;
         }
         .screen { 
             display: none; 
@@ -45,7 +47,22 @@
         }
         button:hover { background-color: #2980b9; }
         button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
-        select { font-size: 18px; padding: 10px; margin: 8px; width: 85%; max-width: 260px; text-align: center; border-radius: 8px; border: 2px solid #bdc3c7; background-color: #fff; }
+        
+        /* 🚀 關鍵修復：解除 select 上的觸控封鎖，恢復原生點擊響應 */
+        select { 
+            font-size: 18px; 
+            padding: 12px 10px; 
+            margin: 8px; 
+            width: 85%; 
+            max-width: 260px; 
+            text-align: center; 
+            border-radius: 8px; 
+            border: 2px solid #bdc3c7; 
+            background-color: #fff; 
+            cursor: pointer;
+            touch-action: manipulation !important;
+            pointer-events: auto !important;
+        }
         #game-header { 
             display: flex; 
             justify-content: space-between; 
@@ -263,13 +280,36 @@
         .my-rank { background-color: #fff2cc !important; font-weight: bold; }
         .leaderboard-wrap { margin-top: 20px; border-top: 2px dashed #bdc3c7; padding-top: 15px; }
         .empty-tips { padding: 25px 10px; color: #7f8c8d; font-size: 16px; font-style: italic; background-color: #f9f9f9; border-radius: 10px; margin: 10px 0; border: 1px dashed #bdc3c7; }
+        
+        /* 🎨 右下角署名樣式 */
+        .credit-footer {
+            position: absolute;
+            bottom: 8px;
+            right: 15px;
+            font-size: 13px;
+            color: #7f8c8d;
+            font-weight: 500;
+            pointer-events: none;
+            letter-spacing: 0.5px;
+        }
+        @media (max-height: 600px) {
+            .credit-footer {
+                position: relative;
+                bottom: 0;
+                right: 0;
+                margin-top: 15px;
+                display: block;
+                text-align: right;
+            }
+        }
     </style>
 </head>
 <body>
+    <!-- 1. 登入介面 (單機示範版) -->
     <div id="login-screen" class="screen active">
         <h1>🧭 東南西北大探險</h1>
         <p style="font-size: 18px; color: #7f8c8d; margin-bottom: 8px;">請選擇你的身份：</p>
-        <select id="class-select" onchange="handleClassChange()">
+        <select id="class-select">
             <option value="3A">3A 班</option>
             <option value="3B">3B 班</option>
             <option value="3C">3C 班</option>
@@ -285,6 +325,7 @@
         </div>
     </div>
 
+    <!-- 2. 規則介面 -->
     <div id="rules-screen" class="screen">
         <h2>📜 遊戲挑戰規則</h2>
         <p style="font-size: 18px; text-align: left; line-height: 1.6; max-width: 500px; margin: auto;">
@@ -296,6 +337,7 @@
         <button onclick="startGame()">▶ 開始挑戰</button>
     </div>
 
+    <!-- 3. 過場晉級畫面 -->
     <div id="transition-screen" class="screen">
         <div style="padding: 20px 10px;">
             <div style="font-size: 55px; margin-bottom: 10px;" id="trans-badge">🎉</div>
@@ -305,6 +347,7 @@
         </div>
     </div>
 
+    <!-- 4. 主遊戲介面 -->
     <div id="game-screen" class="screen">
         <div id="correct-toast">
             <div class="toast-icon">✔️</div>
@@ -323,6 +366,7 @@
         <div id="options-area"></div>
     </div>
 
+    <!-- 5. 結束結算介面 -->
     <div id="leaderboard-screen" class="screen">
         <h2>🏆 挑戰結束！</h2>
         <p style="font-size: 20px; margin: 5px 0;">你的本局分數是：<strong id="final-score" style="font-size:28px; color:#e74c3c;"></strong> 分</p>
@@ -332,6 +376,9 @@
         <br>
         <button onclick="backToLoginScreen()">🔄 返回首頁再次挑戰</button>
     </div>
+
+    <!-- 🎨 右下角優雅署名 -->
+    <div class="credit-footer">Designed by 陳綺雯老師</div>
 
     <script>
         let player = { classId: "3A", studentId: "01 號", score: 0 };
@@ -347,10 +394,10 @@
         let questionCount = 0;
         let lastAnswer = ""; 
         let compassTx = 0, compassTy = 0;
-
         const teacherList = ["陳麗嫦校長", "陳珮容老師", "梁穎欣主任", "丁紹斌老師", "陳子殷老師", "林肇鈴主任", "王柏榮老師"];
         let leaderboardData = [];
         
+        // 💾 本地單機儲存機制，不連接網路
         function initLeaderboardStorage() {
             const saved = localStorage.getItem("compass_game_leaderboard_v2");
             leaderboardData = saved ? JSON.parse(saved) : [];
@@ -389,20 +436,27 @@
         let currentTypeID = 0; 
         let currentQuestionDir = ""; 
 
+        // 🔄 換身份同步更新
         function handleClassChange() {
             const classSelect = document.getElementById("class-select");
             const idSelect = document.getElementById("student-id-select");
+            if (!classSelect || !idSelect) return;
+            
             idSelect.innerHTML = "";
             if (classSelect.value === "老師") {
                 teacherList.forEach(name => {
                     const opt = document.createElement("option");
-                    opt.value = name; opt.innerText = name; idSelect.appendChild(opt);
+                    opt.value = name;
+                    opt.textContent = name;
+                    idSelect.appendChild(opt);
                 });
             } else {
                 for (let i = 1; i <= 30; i++) {
                     const opt = document.createElement("option");
                     const numText = (i < 10 ? "0" + i : i) + " 號";
-                    opt.value = numText; opt.innerText = numText; idSelect.appendChild(opt);
+                    opt.value = numText;
+                    opt.textContent = numText;
+                    idSelect.appendChild(opt);
                 }
             }
         }
@@ -411,7 +465,7 @@
             const container = document.getElementById(tableContainerId);
             if (!container) return;
             if (leaderboardData.length === 0) {
-                container.innerHTML = `<div class="empty-tips">📝 目前尚未有挑戰記錄，快來成為今日的第一名吧！</div>`;
+                container.innerHTML = `<div class="empty-tips">📝 目前尚未有挑戰記錄，快來成為今天的第一名吧！</div>`;
                 return;
             }
             const tableId = tbodyId === "login-leaderboard-body" ? "login-table" : "end-table";
@@ -453,11 +507,15 @@
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             document.getElementById(id).classList.add('active');
         }
+
         function goToRules() {
-            player.classId = document.getElementById("class-select").value;
-            player.studentId = document.getElementById("student-id-select").value;
+            const classSelect = document.getElementById("class-select");
+            const idSelect = document.getElementById("student-id-select");
+            player.classId = classSelect ? classSelect.value : "3A";
+            player.studentId = idSelect ? idSelect.value : "01 號";
             showScreen("rules-screen");
         }
+
         function startGame() {
             player.score = 0; timeLeft = 120; currentLevel = 1; consecutiveCorrect = 0;
             level3QuestionPool = []; lastAnswer = "";
@@ -513,7 +571,6 @@
             document.getElementById("options-area").innerHTML = "";
             document.getElementById("visual-area").innerHTML = "";
             
-            // 🔓 第三層不設連勝上限，直接顯示數字
             if (currentLevel === 3) {
                 document.getElementById("streak-counter").innerText = `${consecutiveCorrect}`;
             } else {
@@ -850,7 +907,7 @@
             }
         }
 
-        function renderMapAndCompass(centerIdx, targetIdx = -1, obIdx = -1) {
+        function renderMapAndCompass(centerIdx, targetIdx = -1) {
             let html = `<div class="map-wrapper"><div class="grid-container" id="grid-parent">`;
             mapGrid.forEach((place, i) => {
                 let css = "grid-item";
@@ -894,14 +951,13 @@
                 document.getElementById("score-display").innerText = player.score;
                 
                 triggerCorrectEffect(points, () => {
-                    // 🔓 第一、二層連續答對 2 題自動晉級；第三層解鎖連勝上限
                     if (consecutiveCorrect >= 2 && level < 3) {
                         triggerLevelTransition(level + 1); return;
                     }
                     nextQuestion();
                 }, "答對了！");
             } else {
-                consecutiveCorrect = 0; // 💥 答錯立刻歸 0
+                consecutiveCorrect = 0; 
                 isHintStateActive = true; isRetryMode = true;
                 
                 if (currentLevel === 3) {
@@ -950,9 +1006,11 @@
             }
         }
 
+        // 💾 本地結束遊戲：將成績安全存入 LocalStorage
         function endGame() {
             if (timer) clearInterval(timer);
             document.getElementById("final-score").innerText = player.score;
+            
             let record = leaderboardData.find(item => item.classId === player.classId && item.studentId === player.studentId);
             if (record) {
                 record.attempts = (record.attempts || 1) + 1;
@@ -961,9 +1019,11 @@
                 leaderboardData.push({ classId: player.classId, studentId: player.studentId, score: player.score, attempts: 1 });
             }
             saveLeaderboardStorage();
+            
             leaderboardData.sort((a, b) => b.score - a.score || a.attempts - b.attempts);
-            let myRank = leaderboardData.findIndex(item => item.classId === player.classId && item.studentId === player.studentId) + 1;
-            document.getElementById("rank-sentence-box").innerHTML = `🎉 你現時的排名是第 <span style="font-size:28px; color:#e74c3c;">${myRank}</span> 位！`;
+            const myRank = leaderboardData.findIndex(item => item.classId === player.classId && item.studentId === player.studentId) + 1;
+            document.getElementById("rank-sentence-box").innerHTML = `🎉 你現時的排名是第 <span style="font-size:28px; color:#e74c3c;">${myRank > 0 ? myRank : 'N/A'}</span> 位！`;
+            
             renderLeaderboardTable("end-leaderboard-body", "end-leaderboard-container", true);
             showScreen("leaderboard-screen");
         }
@@ -973,8 +1033,17 @@
             showScreen("login-screen");
         }
 
+        // 🚀 核心加載綁定
         window.addEventListener("DOMContentLoaded", () => {
-            initLeaderboardStorage(); handleClassChange();
+            const classSelect = document.getElementById("class-select");
+            if (classSelect) {
+                classSelect.addEventListener("change", handleClassChange);
+            }
+            // 立即執行一次初始加載，生成預設學號
+            handleClassChange();
+            
+            // 載入本地排行榜數據
+            initLeaderboardStorage();
             renderLeaderboardTable("login-leaderboard-body", "login-leaderboard-container", false);
         });
     </script>
